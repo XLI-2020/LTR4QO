@@ -1,0 +1,520 @@
+import copy
+import os
+import pickle
+import pandas as pd
+import numpy as np
+from sklearn.cluster import AgglomerativeClustering
+from sklearn.mixture import GaussianMixture
+from ltr_db_optimizer.parser import SQLParser
+
+
+min_vec = np.array([0.0, 0.0, 0.0, 1.0, 5.0, 5.0])
+max_vec = np.array([1.0, 1.0, 7.0, 4.801740e+08, 6.001215e+06, 6.001215e+06])
+# tree_high = 9410970000.0
+tree_high = 53435600.0
+tree_low = 1.0
+
+
+class FeatureExtractorGraph:
+    # We used the following SQL parts:
+    # Sort
+    # Join: Merge Join, Nested Loop Join, Hash Join
+    # Aggregate: Stream Aggregate, Hash Aggregate
+    # Scan: Index Scan, Table Scan
+
+    type_vector = ["sort", "stream_aggregate", "hash_aggregate", "merge_join", "nested_loop_join", "hash_join", "index_scan", "table_scan", "null"]
+
+    # type_vector = ["sort", "stream_aggregate", "hash_aggregate", "merge_join", "nested_loop_join", "hash_join", "table_scan", "null"]
+
+    
+    def __init__(self, with_cost = True, small_version=False):
+        self.vector_length = len(self.type_vector)
+        self.with_cost = with_cost
+        if with_cost:
+            self.vector_length += 1#2 # for estimated subtree cost and estimated rows
+        self.small_version = small_version
+        self.rows = {}
+
+        self.parts_cost_list = []
+
+
+    def featurize_node(self, node):
+        none_child = np.zeros(self.vector_length)
+        none_child[8] = 1
+
+        # print('curr plan node name & id: ', node.name, node.id, node.estimated_rows)
+        
+        if node.has_featurized_plan():
+            return node.get_featurized_plan(), node.estimated_rows
+        
+        if node.name in self.type_vector:
+            this_vector = np.zeros(self.vector_length)
+            this_vector[self.type_vector.index(node.name)] = 1
+        else:
+            # If it is not in type vector, there should also be only one child
+            # print('Not considered operator types, ignored!')
+            return self.featurize_node(node.get_left_child())
+        
+        if self.with_cost:
+            # insert cost here.
+            this_vector[-1] = node.estimated_rows # changed -2
+            rows = node.estimated_rows
+            # print('curr plan node vec:, this_vector', this_vector)
+            
+        if node.has_right_child():
+            # print('## two childs!')
+            # print('left child name, id, rows', node.get_left_child().name, node.get_left_child().id, node.get_left_child().estimated_rows)
+            left_child,_ = self.featurize_node(node.get_left_child())
+            # print('right child name, id rows', node.get_right_child().name, node.get_right_child().id, node.get_right_child().estimated_rows)
+            right_child,_ = self.featurize_node(node.get_right_child())
+        elif node.has_left_child():
+            # print('## left child only!')
+            # print('left child name, id', node.get_left_child().name, node.get_left_child().id, node.get_left_child().estimated_rows)
+            left_child,_ = self.featurize_node(node.get_left_child())
+            right_child = (none_child)
+        else:
+            # print('## no childs!')
+            # print('leaf node: ', this_vector)
+            node.set_featurized_plan((this_vector))
+            return (this_vector), node.estimated_rows
+
+        # print("current node's left child feat vec: ", left_child)
+        # print("current node's right child feat vec: ", right_child)
+
+        node.set_featurized_plan((this_vector, left_child, right_child))
+        return (this_vector, left_child, right_child), node.estimated_rows
+    
+    def match_cost_plan(self, execution_plan, cost_plan):
+        cost_parts = cost_plan.split("<")
+        parts_cost = []
+        # print('cost_parts: ', cost_parts[:10])
+        
+        for part_num, part in enumerate(cost_parts):
+            # print('part: ', part)
+            if part.startswith("RelOp"):
+                sub_parts = part.split('"')
+                sub_parts_cost = []
+                for idx, sub in enumerate(sub_parts):
+                    if "PhysicalOp" in sub:
+                        # print('###PhysicalOp: ', sub_parts[idx+1])
+                        sub_parts_cost.append(sub_parts[idx+1])
+                    if "EstimateRows" in sub:
+                        # print('###EstimateRows: ', sub_parts[idx+1])
+                        sub_parts_cost.append(float(sub_parts[idx+1]))
+                parts_cost.append(tuple(sub_parts_cost))
+
+        # print('parts_cost',parts_cost)
+        # self.parts_cost_list.extend(parts_cost)
+
+        extended_plan, _ =  self.append_features(execution_plan, parts_cost)
+
+        return extended_plan
+
+
+    def append_features(self, execution_plan, label_parts):
+            # print('self.rows dict:', self.rows)
+        # print('current execution_plan name & id: ', execution_plan.name, execution_plan.id)
+        if not(execution_plan.name == "top" and execution_plan.get_left_child().name == "sort"):
+            if execution_plan.name == "compute_scalar" and not label_parts[0][0] == "Compute Scalar":
+                # print('compute_scalar: ', label_parts[0])
+                curr_part = label_parts[0]
+            else:
+                curr_part = label_parts.pop(0)
+                # print('curr part cardinality: ', curr_part)
+                if curr_part[0] == 'Filter':
+                    curr_part = label_parts.pop(0)
+                    # print('curr part actually used 1: ', curr_part)
+                if curr_part[0] == "Compute Scalar" and execution_plan.name != "compute_scalar":
+                    curr_part = label_parts.pop(0)
+                    # print('curr part actually used 2: ', curr_part)
+
+            if not execution_plan.has_rows():
+                # print('enter setting rows!!')
+                assert len(curr_part) == 2 or len(curr_part) == 3, "length of curr_part abnormal!!!"
+                if len(curr_part) == 2:
+                    estimated_rows = curr_part[1]
+                elif len(curr_part) == 3:
+                    estimated_rows = curr_part[2]
+                rows_calc = (estimated_rows-tree_low)/(tree_high-tree_low)
+                # print('execution_plan.name: ', execution_plan.name)
+                # print('execution_plan.id: ', execution_plan.id)
+                # print('estimated number of rows: ', estimated_rows)
+                # print('rows_calc: ', rows_calc)
+                execution_plan.set_estimated_rows(rows_calc)
+                self.rows[execution_plan.id] = rows_calc
+        if execution_plan.name not in ["index_scan", "table_scan"]:
+            # print("current execution_plan's left_child name & id", execution_plan.left_child.name, execution_plan.left_child.id)
+            # print("current execution_plan's left_child contained_tables", execution_plan.left_child.contained_tables)
+
+            # if execution_plan.has_right_child():
+            #     print("current execution_plan's right_child name & id", execution_plan.right_child.name, execution_plan.right_child.id)
+            #     print("current execution_plan's right_child contained_tables", execution_plan.right_child.contained_tables)
+            # else:
+            #     print('no right child')
+
+            for child in execution_plan.get_children()[::-1]:
+                self.append_features(child, label_parts)
+        return execution_plan, label_parts
+
+    def append_features_old_202510251726(self, execution_plan, label_parts):
+        # print('self.rows dict:', self.rows)
+        # print('current execution_plan name & id: ', execution_plan.name, execution_plan.id)
+        if not(execution_plan.name == "top" and execution_plan.get_left_child().name == "sort"):
+            if execution_plan.name == "compute_scalar" and not label_parts[0][0] == "Compute Scalar":
+                # print('compute_scalar: ', label_parts[0])
+                curr_part = label_parts[0]
+            else:
+                curr_part = label_parts.pop(0)
+                # print('curr part cardinality: ', curr_part)
+                if curr_part[0] == 'Filter':
+                    curr_part = label_parts.pop(0)
+                    # print('curr part actually used 1: ', curr_part)
+                if curr_part[0] == "Compute Scalar" and execution_plan.name != "compute_scalar":
+                    curr_part = label_parts.pop(0)
+                    # print('curr part actually used 2: ', curr_part)
+
+            if not execution_plan.has_rows():
+                # print('enter setting rows!!')
+                assert len(curr_part) == 2 or len(curr_part) == 3, "length of curr_part abnormal!!!"
+                if len(curr_part) == 2:
+                    estimated_rows = curr_part[1]
+                elif len(curr_part) == 3:
+                    estimated_rows = curr_part[2]
+                rows_calc = (estimated_rows-tree_low)/(tree_high-tree_low)
+                # print('execution_plan.name: ', execution_plan.name)
+                # print('execution_plan.id: ', execution_plan.id)
+                # print('estimated number of rows: ', estimated_rows)
+                # print('rows_calc: ', rows_calc)
+
+                execution_plan.set_estimated_rows(rows_calc)
+                self.rows[execution_plan.id] = rows_calc
+        if execution_plan.name not in ["index_scan", "table_scan"]:
+            # print("current execution_plan's left_child name & id", execution_plan.left_child.name, execution_plan.left_child.id)
+            # print("current execution_plan's left_child contained_tables", execution_plan.left_child.contained_tables)
+
+            # if execution_plan.has_right_child():
+            #     print("current execution_plan's right_child name & id", execution_plan.right_child.name, execution_plan.right_child.id)
+            #     print("current execution_plan's right_child contained_tables", execution_plan.right_child.contained_tables)
+            # else:
+            #     print('no right child')
+
+            for child in execution_plan.get_children()[::-1]:
+                self.append_features(child, label_parts)
+        return execution_plan, label_parts
+
+
+    def append_cost(self, plan):
+        if plan.has_rows():
+            # print('plan.has_rows()!')
+            return False
+        if plan.id in self.rows and plan.name != "sort":
+            # print('plan.id in self.rows!')
+            plan.set_estimated_rows(self.rows[plan.id])
+            toggle = False
+            if plan.has_right_child():
+                toggle = toggle or self.append_cost(plan.get_right_child())
+            if plan.has_left_child():
+                toggle = toggle or self.append_cost(plan.get_left_child())
+            return toggle
+        elif plan.name == "sort":
+            # print('plan.name == "sort"!')
+            if plan.left_child.has_rows():
+                plan.set_estimated_rows(plan.left_child.estimated_rows)
+                return False
+            else:
+                return_val = self.append_cost(plan.get_left_child())
+                if return_val:
+                    return True
+                plan.set_estimated_rows(plan.left_child.estimated_rows)
+                return False
+        return True
+
+
+def get_sql_parse_info(job):
+    with open(f"/home/xliq/Documents/LTR_DP/Data/output_jobs/{job}.txt", "r") as f:
+        sql_full = f.read()
+    sql_full = sql_full.replace("tcph", "tpch")
+    ### parse query
+    sql_dict, alias_dict = SQLParser.from_sql(sql_full)
+    # print('how many joins: ', len(sql_dict["Joins"]))
+    return sql_dict
+
+def recalculate_query_encoding(node):
+    # print('start query-encode from current plan node name & id: ', node.name, node.id)
+    if node.has_right_child():
+        # print('enter query-encode left&right childs name, id', node.get_left_child().name, node.get_left_child().id,
+        #       node.get_right_child().name, node.get_right_child().id)
+        left_child_qv = recalculate_query_encoding(node.get_left_child())
+        right_child_qv = recalculate_query_encoding(node.get_right_child())
+    elif node.has_left_child():
+        # print('no right child!!')
+        # print('enter query-encode  left child name, id', node.get_left_child().name, node.get_left_child().id)
+        left_child_qv = recalculate_query_encoding(node.get_left_child())
+    else:
+        # print('no childs!')
+        node.calculate_query_encoding()
+        return node
+
+    node.calculate_query_encoding()
+    # print('end query-encode from current plan node name & id: ', node.get_query_encoding())
+    return node
+
+def obtain_new_query_enc(node, sql_dict):
+    execution_plan_cp1 = copy.deepcopy(node)
+
+    new_node = recalculate_query_encoding(execution_plan_cp1)
+    # print('new node query enc before normalize: ', np.array(new_node.get_query_encoding()))
+    new_node.normalize_query()
+    if len(sql_dict["Sort"]):
+        new_node.query_encoding[0] = 1
+    # print('new node query enc after normalize: ', np.array(new_node.get_query_encoding()))
+    # print('####')
+    return new_node.get_query_encoding()
+
+def  get_features_with_cost_from_folder(plans_folder, cost_folder, return_featurized=True):
+    # feature_ext = FeatureExtractor()
+    feature_ext = FeatureExtractorGraph()
+    featurized_trees = {}
+    featurized_vecs = {}
+    print('len of cost_folder: ', len(os.listdir(cost_folder)))
+    print('len of plans_folder: ', len(os.listdir(plans_folder)))
+
+    for file in os.listdir(cost_folder):
+        if file.endswith(".txt"):
+            file_name = file.split(".")[0]
+            job_nr = file.split("_")[0]
+            version_nr = file_name.split("_")[1]
+            
+            with open(cost_folder+"/"+file, "r") as f:
+                cost_plan = f.read()
+            with open(plans_folder+"/"+job_nr+"/"+version_nr+".pickle", "rb") as d:
+                execution_plan = pickle.load(d)
+
+            sql_dict = get_sql_parse_info(job_nr)
+
+
+            full_execution_plan = feature_ext.match_cost_plan(execution_plan, cost_plan)
+
+            if return_featurized:
+                # print('####')
+                # print('plan file: ', file)
+                # sql = cost_plan.split('StatementText="')[1].split('OPTION')[0].strip()
+                #
+                # print('sql: ', sql)
+
+                # print('execution_plan node: ', execution_plan, execution_plan.name, execution_plan.id)
+
+                featurized_plan, rows = feature_ext.featurize_node(full_execution_plan)
+
+                # print('done with curr plan enc!\n', featurized_plan, rows)
+                # print('####')
+                query_vec = obtain_new_query_enc(full_execution_plan, sql_dict)
+
+                featurized_trees[file_name] = featurized_plan
+                featurized_vecs[file_name] = query_vec
+            else:
+                featurized_trees[file_name] = full_execution_plan
+    return featurized_vecs, featurized_trees
+
+
+
+
+
+def featurize_with_labels(plans_folder, cost_folder, label_csv, max_score = 50, score_function = "special", extra_for_min = True, special_border = 0.95):
+
+    featurized_vecs, featurized_trees = get_features_with_cost_from_folder(plans_folder, cost_folder)
+
+    print('number of featurized_vecs, featurized_trees', len(featurized_vecs.keys()), len(featurized_trees.keys()))
+
+    # print('featurized_vecs', featurized_vecs, featurized_trees)
+    label_dict = {}
+
+    df = pd.read_csv(label_csv, index_col = 0)
+
+    total_unique_job_list = pd.unique(df["Job_nr"]).values.tolist()
+    involved_job_list = total_unique_job_list[:2000]
+
+
+    times = []
+
+    global_sum_max = df['Sum'].max()
+
+    for job in pd.unique(df["Job_nr"]):
+        temp_df = df[df["Job_nr"]==job].copy()
+        print('job: ', job)
+        print('temp_df&length: ', temp_df, len(temp_df))
+
+        a = np.array(temp_df["Cost"])
+        local_sum_max = a.max()
+
+        if score_function == "special":
+            temp = df[df["Job_nr"] == job]
+            labels = temp.index
+            x = np.array(temp["Sum"])
+            if len(x) == 0:
+                continue
+            if np.min(x[x>=0]) != 0:
+                x[x>=0] = x[x>=0]/np.min(x[x>=0])
+            else:
+                x = x + 1
+            times.extend(list(zip(labels,x)))
+        else:
+            if score_function == "linear":
+                a[a==-2] = max(a)*2 # Necessary, otherwise min(a) == -2
+                temp_df["scores"] = calculate_linear_scores(a, n = max_score)
+            elif score_function == "histogram":
+                temp_df["scores"] = calculate_histogram_score(a, nr_bins = max_score, extra_bin_for_min = extra_for_min)
+            elif score_function == "agglomerative":
+                temp_df["scores"] = calculate_agglomerative_score(a, nr_clusters = max_score, extra_bin_for_min = extra_for_min)
+            elif score_function == "linearG":
+                temp_df["scores"] = calculate_linear_global_scores(a, global_sum_max)
+            elif score_function == "linearL":
+                temp_df["scores"] = calculate_linear_local_scores(a, local_sum_max)
+            elif score_function == "linearR":
+                temp_df["scores"] = calculate_linear_raw_scores(a)
+            elif score_function == "linearLN":
+                temp_df["scores"] = calculate_linear_local_norm_scores(a, local_sum_max)
+            elif score_function == "linearNEG":
+                temp_df["scores"] = calculate_negative_scores(a)
+
+            for idx, row in temp_df.iterrows():
+                label_dict[idx] = row["scores"]
+
+    if score_function == "special":
+        labels, scores = calculate_special_score(times, max_score, special_border)
+        for idx, s in enumerate(scores):
+            label_dict[labels[idx]] = s
+
+    return featurized_vecs, featurized_trees, label_dict
+
+
+
+def calculate_special_score(scores, n, border_value):
+    s = np.array([s[1] for s in scores])
+    border = np.quantile(s[s >= 0], border_value)
+    print(border)
+    times = []
+    for s in scores:
+        if s[1] > border or s[1] < 0:
+            times.append(border)
+        else:
+            times.append(s[1])
+    times = np.array(times)
+    labels = AgglomerativeClustering(n_clusters=n+1).fit_predict(times.reshape(-1,1))
+    #labels = clustering.predict(times.reshape(-1,1))
+    maxima = [np.max(times[np.where(labels == i)]) for i in range(n)]
+    sort = np.concatenate((np.sort(maxima)[::-1],np.array([0])))
+    result = np.digitize(times,sort)
+    return [s[0] for s in scores], result
+    
+def calculate_linear_scores(scores, n = 5):
+    best = min(scores)
+    ten_best = best*n
+    if not ten_best:
+        ten_best = n    
+    # apply linear scores:
+    m = -n/(ten_best - best)
+    b = -1*m*(ten_best)
+    
+    scores = m*scores+b
+    return scores
+
+
+def calculate_linear_global_scores(scores, max_score):
+    print('global max_score:', max_score)
+    print('scores: ', scores)
+
+    normalized_scores = max_score/(scores + 0.001)
+    print('normalized scores: ', normalized_scores)
+    return normalized_scores
+
+
+def calculate_linear_local_scores(scores, max_score):
+    print('linearL, local max_score:', max_score)
+    print('scores: ', scores)
+    normalized_scores = (max_score+0.001) / (scores+0.001)
+
+    print('normalized scores: ', normalized_scores)
+    return normalized_scores
+
+def calculate_negative_scores(scores):
+    neg_scores = (-1)*scores
+    print('negative scores: ', neg_scores)
+
+    return neg_scores
+
+def calculate_linear_local_norm_scores(scores, max_score):
+    print('linearLN, local min_score:', max_score)
+    print('scores: ', scores)
+
+    scores = max_score/scores
+    print('min max scores: ', min(scores), max(scores))
+
+    normalized_scores = (scores - min(scores) + 0.01) / (max(scores) - min(scores) + 0.001)
+    print('normalized scores: ', normalized_scores)
+
+    return normalized_scores
+
+def calculate_linear_raw_scores(scores):
+    print('runtimes: ', scores)
+    scores_sorted = list(np.sort(scores)[::-1])
+
+    # print('scores_sorted: ', scores_sorted)
+    score_sorted_indices = []
+    for idx, i in enumerate(scores):
+        index = scores_sorted.index(i)
+        score_sorted_indices.append(index)
+        scores_sorted[index] = "abcde"
+
+    print('scores: ', score_sorted_indices)
+
+    return score_sorted_indices
+
+def calculate_histogram_score(labels, nr_bins = 10, extra_bin_for_min = True):
+    labels_copy = labels[labels != -2]
+    hist, edges = np.histogram(labels_copy, nr_bins)
+    edges_inv = edges[::-1]
+    result = np.digitize(labels,edges_inv)
+    result[labels == -2] = -1
+    if extra_bin_for_min:
+        result[labels == min(labels_copy)] = nr_bins+1
+    return result
+
+def calculate_agglomerative_score(labels, nr_clusters=10, extra_bin_for_min = True):    
+    # Todo: This won't work yet because there is e.g. a max score of 3 for list of length 3 
+    
+    labels_copy = labels[labels != -2].reshape(-1, 1)
+    if len(labels_copy) < nr_clusters:
+        nr_clusters = len(labels_copy)
+    
+    clustering = AgglomerativeClustering(n_clusters = nr_clusters).fit_predict(labels_copy)
+    maxima = [np.max(labels_copy[np.where(clustering == i)]) for i in range(nr_clusters)]
+    sort = np.concatenate((np.sort(maxima)[::-1],np.array([0])))
+    result = np.digitize(labels,sort)
+    result[labels == -2] = -1
+    if extra_bin_for_min:
+        result[labels == min(labels_copy)] = nr_clusters+1
+    return result
+
+
+def get_left_child(node):
+    if len(node) != 3:
+        return None
+    return node[1]
+
+def get_right_child(node):
+    if len(node) != 3:
+        return None
+    return node[2]
+    
+def get_features(node):
+    if len(node) != 3:
+        return node
+    return node[0]
+
+
+# scores = [34234,23, 342, 54, 1,25]
+# calculate_linear_raw_scores(scores)
+
+# runtimes = [4, 34, 5, 65, 78, 3, 6, 7, 9]
+# scores = calculate_linear_raw_scores(runtimes)
