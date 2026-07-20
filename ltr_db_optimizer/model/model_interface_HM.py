@@ -6,9 +6,8 @@ import random
 import os
 import pickle
 from ltr_db_optimizer.ext.ptranking.ltr_adhoc.listwise.listnet import ListNet
-from ltr_db_optimizer.model.featurizer_dict import table_info
 from ltr_db_optimizer.model.model_structures.comparison_net2 import LTRComparisonNet ##changed
-from ltr_db_optimizer.model.model_structures.proposals_by_XL import *
+from ltr_db_optimizer.model.model_structures.self_proposals import *
 from ltr_db_optimizer.model.metrics import PositionK, HitsAtK, TopKFound, FoundBestK
 
 
@@ -70,8 +69,8 @@ def create_model(LossFunction, **kwargs):
                 self.net = LeroNet(18).to(self.device)
             else:
                 self.net = eval(model_archi_name)(input_dim_1, input_dim_2).to(self.device)
-                print(f'load XL proposed model:{model_archi_name}!!!')
-                print('load LTRComparisonNet XL!!!')
+                print(f'load self proposed model:{model_archi_name}!!!')
+                print('load LTRComparisonNet self!!!')
 
             if optimizer == "adam":
                 self.optimizer = torch.optim.Adam(self.net.parameters())

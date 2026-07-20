@@ -111,7 +111,7 @@ def enumerate_by_SQL_Server(job, sql_full, folder_name, cursor):
 
     # print('rows[0]', rows[0])
     # print('rows[0][0]', rows[0][0])
-    path_out = f"/home/xliq/Documents/LTR_DP/results/enumerated_plans_DB/{folder_name}/iter{iter}/{job}/"
+    path_out = f"./LTR4QO/results/enumerated_plans_DB/{folder_name}/iter{iter}/{job}/"
 
     os.system(f"mkdir -p {path_out}")
 
@@ -196,13 +196,8 @@ if __name__ == "__main__":
 
     ### Method info.
 
-
-    if targeted_enum_method == "XL":
-        from ltr_db_optimizer.enumeration_algorithm.enumeration_algorithm_XL import EnumerationAlgorithm
-        print("from ltr_db_optimizer.enumeration_algorithm.enumeration_algorithm_XL import EnumerationAlgorithm")
-
-    elif targeted_enum_method == "COST":
-        from ltr_db_optimizer.enumeration_algorithm.archiv.enumeration_algorithm_COST import EnumerationAlgorithm
+    if targeted_enum_method == "COST":
+        from ltr_db_optimizer.enumeration_algorithm.enumeration_algorithm_COST import EnumerationAlgorithm
         print("from ltr_db_optimizer.enumeration_algorithm.enumeration_algorithm_COST import EnumerationAlgorithm")
 
     elif targeted_enum_method == "HM":
@@ -216,10 +211,6 @@ if __name__ == "__main__":
 
 
 
-    ### trained ranking model to rank plans in enumeration process
-    # model = f"/home/xliq/Documents/LTR_DP/ltr_db_optimizer/model/saved_models/{targeted_model_name}/best_avg_ndcg.pth"
-
-    # model = f"/home/xliq/Documents/LTR_DP/ltr_db_optimizer/model/saved_models/{targeted_model_name}/min_avg_valid_loss.pth"
 
     model = None
 
@@ -228,7 +219,7 @@ if __name__ == "__main__":
 
     if targeted_test_query == "job-o":
         query_folder_name = "job"
-        query_path = f"/home/xliq/Documents/LTR_DP/Data/testing_data/{query_folder_name}/"
+        query_path = f"./LTR4QO/Data/testing_data/{query_folder_name}/"
         query_file_names = os.listdir(query_path)
         testquery = []
         for imdb_query in query_file_names:
@@ -237,12 +228,8 @@ if __name__ == "__main__":
 
         testquery = sorted(testquery, reverse=False)
     elif targeted_test_query == 'train':
-        # input_job_folder = nr_of_workloads.split('_')[0]
-        # query_path = f"/home/xliq/Documents/LTR_DP/Data/output_jobs_{input_job_folder}/"
 
-        # query_path = f"/home/xliq/Documents/LTR_DP/Data/output_jobs_depth20joins12jobs2000/"
-
-        query_path = f"/home/xliq/Documents/LTR_DP/Data/output_jobs/"
+        query_path = f"./LTR4QO/Data/output_jobs/"
 
         train_query_files = os.listdir(query_path)
         testquery = []
@@ -256,7 +243,7 @@ if __name__ == "__main__":
         testquery = testquery[:nr_testquery]
     elif targeted_test_query == 'stats':
         query_folder_name = "stats_train2" # stats1000reshuff
-        query_path = f"/home/xliq/Documents/LTR_DP/Data/{query_folder_name}/"
+        query_path = f"./LTR4QO/Data/{query_folder_name}/"
         query_file_names = os.listdir(query_path)
         testquery = []
         for stats_query in query_file_names:
@@ -265,7 +252,7 @@ if __name__ == "__main__":
 
     elif targeted_test_query == 'imdb-t':
         query_folder_name = "imdb_train"  #imdb1000
-        query_path = f"/home/xliq/Documents/LTR_DP/Data/{query_folder_name}/"
+        query_path = f"./LTR4QO/Data/{query_folder_name}/"
         query_file_names = os.listdir(query_path)
         testquery = []
         for stats_query in query_file_names:
@@ -274,7 +261,7 @@ if __name__ == "__main__":
 
     elif targeted_test_query == 'imdb-t2':
         query_folder_name = "imdb_train2"  # imdb39reshuff
-        query_path = f"/home/xliq/Documents/LTR_DP/Data/{query_folder_name}/"
+        query_path = f"./LTR4QO/Data/{query_folder_name}/"
         query_file_names = os.listdir(query_path)
         testquery = []
         for stats_query in query_file_names:
@@ -283,7 +270,7 @@ if __name__ == "__main__":
 
     elif targeted_test_query == 'imdb-t2':
         query_folder_name = "imdb_train2"  # imdb39reshuff
-        query_path = f"/home/xliq/Documents/LTR_DP/Data/{query_folder_name}/"
+        query_path = f"./LTR4QO/Data/{query_folder_name}/"
         query_file_names = os.listdir(query_path)
         testquery = []
         for stats_query in query_file_names:
@@ -292,7 +279,7 @@ if __name__ == "__main__":
 
     elif targeted_test_query == 'imdb-bs1':
         query_folder_name = "job_base_query_split_1"  # imdb39reshuff
-        query_path = f"/home/xliq/Documents/LTR_DP/Data/{query_folder_name}/test_flat/"
+        query_path = f"./LTR4QO/Data/{query_folder_name}/test_flat/"
         query_file_names = os.listdir(query_path)
         testquery = []
         for stats_query in query_file_names:
@@ -301,7 +288,7 @@ if __name__ == "__main__":
 
     elif targeted_test_query == 'job-l':
         query_folder_name = "job-light"  # imdb39reshuff
-        query_path = f"/home/xliq/Documents/LTR_DP/Data/{query_folder_name}/"
+        query_path = f"./LTR4QO/Data/{query_folder_name}/"
         query_file_names = os.listdir(query_path)
         testquery = []
         for stats_query in query_file_names:
@@ -310,7 +297,7 @@ if __name__ == "__main__":
 
     elif targeted_test_query == 'imdb-los1':
         query_folder_name = "job_leave_one_out_split_1"  # imdb39reshuff
-        query_path = f"/home/xliq/Documents/LTR_DP/Data/{query_folder_name}/test_flat/"
+        query_path = f"./LTR4QO/Data/{query_folder_name}/test_flat/"
         query_file_names = os.listdir(query_path)
         testquery = []
         for stats_query in query_file_names:
@@ -319,7 +306,7 @@ if __name__ == "__main__":
 
     elif targeted_test_query == 'jobc-train':
         query_folder_name = "job-c-train"  # imdb39reshuff
-        query_path = f"/home/xliq/Documents/LTR_DP/Data/{query_folder_name}/"
+        query_path = f"./LTR4QO/Data/{query_folder_name}/"
         query_file_names = os.listdir(query_path)
         testquery = []
         for stats_query in query_file_names:
@@ -329,7 +316,7 @@ if __name__ == "__main__":
 
     k = args.topk
 
-    root_save_path = f"/home/xliq/Documents/LTR_DP/Data/subplans_{nr_of_workloads}"
+    root_save_path = f"./LTR4QO/Data/subplans_{nr_of_workloads}"
     if os.path.exists(root_save_path):
         os.system(f"rm -rf {root_save_path}")
         print(f'{root_save_path} already exists and thus removed first!')
@@ -522,28 +509,9 @@ bash LTR_enumerate_plans_VM_Random.sh RD jobc-train imdb None jobcomplex
 
 
 
-
-
-
-
-
-
-
 """
 
 
-"""
-the order to test trained model: tpch-o -> imdb-o -> tpch-d
-
-xliq@gpu.itu.dk:/home/xliq/Documents/LTR_DP
-
-xliq@gpu.itu.dk:/home/xliq/Documents/LTR_DP/ltr_db_optimizer/model/model_structures
-
- xliq@gpu.itu.dk:/home/xliq/Documents/LTR_DP/ltr_db_optimizer/allrank/models
- 
- xliq@gpu.itu.dk:/home/xliq/Documents/LTR_DP/ltr_db_optimizer/model
-
-"""
 
 
 

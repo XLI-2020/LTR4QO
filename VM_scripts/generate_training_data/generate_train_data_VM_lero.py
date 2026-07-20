@@ -24,10 +24,10 @@ workload = args.workload
 nr_jobs = args.nr_jobs
 postfix = args.postfix
 score_func = args.score_func
-root_path = f"/home/xliq/Documents/LTR_DP/Data/subplans_{workload}"
+root_path = f"./LTR4QO/Data/subplans_{workload}"
 
 
-training_data_path = "/home/xliq/Documents/LTR_DP/Data/"
+training_data_path = "./LTR4QO/Data/"
 
 
 vectors, plans, labels = feature_extraction.featurize_with_labels_Random(f"{root_path}", f"{root_path}",

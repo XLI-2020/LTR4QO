@@ -75,8 +75,9 @@ training_workload = args.train_wk
 postfix = args.postfix
 
 
+directory = "./LTR4QO"
 
-root_path = "/home/xliq/Documents/LTR_DP/Data"
+root_path = f"{directory}/Data"
 
 print("Start Time =", datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
 

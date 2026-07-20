@@ -40,7 +40,7 @@ def get_the_split_of_training_data_finetune(plan_keys, valid_ratio, test_ratio, 
     for subquery in subquery_list:
         job_nr, subquery_nr, plan_nr = subquery.split("_")
         if "tpch" in workload:
-            with open(f"/home/xliq/Documents/LTR_DP/Data/subplans_{workload}/{job_nr}/{subquery_nr}/{plan_nr}.txt", "r") as f:
+            with open(f"./LTR4QO/Data/subplans_{workload}/{job_nr}/{subquery_nr}/{plan_nr}.txt", "r") as f:
                 plan_xml = f.read()
                 sql_full = plan_xml.split("OPTION")[0]
 
@@ -48,7 +48,7 @@ def get_the_split_of_training_data_finetune(plan_keys, valid_ratio, test_ratio, 
             sql_dict, alias_dict = SQLParser.from_sql(sql_full, temp_table_info=TPCHTableInformation())
 
         elif ("job" in workload) or ('imdb' in workload):
-            with open(f"/home/xliq/Documents/LTR_DP/Data/subplans_{workload}/{job_nr}/{subquery_nr}/{plan_nr}.txt", "r") as f:
+            with open(f"./LTR4QO/Data/subplans_{workload}/{job_nr}/{subquery_nr}/{plan_nr}.txt", "r") as f:
                 plan_xml = f.read()
                 sql_full = plan_xml.split("OPTION")[0]
             # print('sql full:', sql_full)
@@ -56,7 +56,7 @@ def get_the_split_of_training_data_finetune(plan_keys, valid_ratio, test_ratio, 
             sql_dict, alias_dict = SQLParser.from_sql(sql_full, temp_table_info=IMDBTableInformation())
             # print('how many joins: ', len(sql_dict["Joins"]))
         elif "stats" in workload:
-            with open(f"/home/xliq/Documents/LTR_DP/Data/subplans_{workload}/{job_nr}/{subquery_nr}/{plan_nr}.txt",
+            with open(f"./LTR4QO/Data/subplans_{workload}/{job_nr}/{subquery_nr}/{plan_nr}.txt",
                       "r") as f:
                 plan_xml = f.read()
                 sql_full = plan_xml.split("OPTION")[0]
@@ -126,7 +126,7 @@ def get_the_split_of_training_data(plan_keys, valid_ratio, test_ratio, workload)
     for subquery in subquery_list:
         job_nr, subquery_nr, plan_nr = subquery.split("_")
         if "tpch" in workload:
-            with open(f"/home/xliq/Documents/LTR_DP/Data/subplans_{workload}/{job_nr}/{subquery_nr}/{plan_nr}.txt", "r") as f:
+            with open(f"./LTR4QO/Data/subplans_{workload}/{job_nr}/{subquery_nr}/{plan_nr}.txt", "r") as f:
                 plan_xml = f.read()
                 sql_full = plan_xml.split("OPTION")[0]
 
@@ -134,7 +134,7 @@ def get_the_split_of_training_data(plan_keys, valid_ratio, test_ratio, workload)
             sql_dict, alias_dict = SQLParser.from_sql(sql_full, temp_table_info=TPCHTableInformation())
 
         elif ("job" in workload) or ('imdb' in workload):
-            with open(f"/home/xliq/Documents/LTR_DP/Data/subplans_{workload}/{job_nr}/{subquery_nr}/{plan_nr}.txt", "r") as f:
+            with open(f"./LTR4QO/Data/subplans_{workload}/{job_nr}/{subquery_nr}/{plan_nr}.txt", "r") as f:
                 plan_xml = f.read()
                 sql_full = plan_xml.split("OPTION")[0]
             # print('sql full:', sql_full)
@@ -142,7 +142,7 @@ def get_the_split_of_training_data(plan_keys, valid_ratio, test_ratio, workload)
             sql_dict, alias_dict = SQLParser.from_sql(sql_full, temp_table_info=IMDBTableInformation())
             # print('how many joins: ', len(sql_dict["Joins"]))
         elif "stats" in workload:
-            with open(f"/home/xliq/Documents/LTR_DP/Data/subplans_{workload}/{job_nr}/{subquery_nr}/{plan_nr}.txt",
+            with open(f"./LTR4QO/Data/subplans_{workload}/{job_nr}/{subquery_nr}/{plan_nr}.txt",
                       "r") as f:
                 plan_xml = f.read()
                 sql_full = plan_xml.split("OPTION")[0]
@@ -203,7 +203,7 @@ def get_the_split_of_jobs_list(X_train_vecs, train_ratio, workload):
         plan_nr = list(X_train_vecs[subquery].keys())[0].split("_")[2]
 
         if "tpch" in workload:
-            with open(f"/home/xliq/Documents/LTR_DP/Data/subplans_{workload}/{job_nr}/{subquery_nr}/{plan_nr}.txt", "r") as f:
+            with open(f"./LTR4QO/Data/subplans_{workload}/{job_nr}/{subquery_nr}/{plan_nr}.txt", "r") as f:
                 plan_xml = f.read()
             sql_full = plan_xml.split("OPTION")[0]
             sql_full = sql_full.replace("tcph", "tpch")
@@ -214,7 +214,7 @@ def get_the_split_of_jobs_list(X_train_vecs, train_ratio, workload):
             nr_joins_list.append(len(sql_dict["Joins"]))
 
         elif "job" in workload or 'imdb' in workload:
-            with open(f"/home/xliq/Documents/LTR_DP/Data/subplans_{workload}/{job_nr}/{subquery_nr}/{plan_nr}.txt", "r") as f:
+            with open(f"./LTR4QO/Data/subplans_{workload}/{job_nr}/{subquery_nr}/{plan_nr}.txt", "r") as f:
                 plan_xml = f.read()
             sql_full = plan_xml.split("OPTION")[0]
             ### parse query
@@ -224,7 +224,7 @@ def get_the_split_of_jobs_list(X_train_vecs, train_ratio, workload):
             nr_joins_list.append(len(sql_dict["Joins"]))
 
         elif "stats" in workload:
-            with open(f"/home/xliq/Documents/LTR_DP/Data/subplans_{workload}/{job_nr}/{subquery_nr}/{plan_nr}.txt", "r") as f:
+            with open(f"./LTR4QO/Data/subplans_{workload}/{job_nr}/{subquery_nr}/{plan_nr}.txt", "r") as f:
                 plan_xml = f.read()
             sql_full = plan_xml.split("OPTION")[0]
             ### parse query
@@ -394,7 +394,7 @@ def enumerate_by_SQL_Server_FAST(job, sql_full, folder_name, cursor, iter, hint=
 
     # print('rows[0]', rows[0])
     # print('rows[0][0]', rows[0][0])
-    path_out = f"/home/xliq/Documents/LTR_DP/results/enumerated_plans_FAST/{folder_name}/iter{iter}/{job}/"
+    path_out = f"./LTR4QO/results/enumerated_plans_FAST/{folder_name}/iter{iter}/{job}/"
 
     os.system(f"mkdir -p {path_out}")
 
@@ -446,7 +446,7 @@ def enumerate_by_SQL_Server_FAST_without_hint(job, sql_full, folder_name, cursor
 
     # print('rows[0]', rows[0])
     # print('rows[0][0]', rows[0][0])
-    path_out = f"/home/xliq/Documents/LTR_DP/results/enumerated_plans_FAST/{folder_name}/iter{iter}/{job}/"
+    path_out = f"./LTR4QO/results/enumerated_plans_FAST/{folder_name}/iter{iter}/{job}/"
 
     os.system(f"mkdir -p {path_out}")
 

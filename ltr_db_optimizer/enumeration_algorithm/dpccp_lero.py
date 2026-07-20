@@ -6,8 +6,7 @@ import ltr_db_optimizer.enumeration_algorithm.utils as utils
 import ltr_db_optimizer.enumeration_algorithm.enumeration_node as nodes
 from ltr_db_optimizer.model.model_structures.comparison_net2 import LTRComparisonNet
 
-from ltr_db_optimizer.model.model_structures.proposals_by_XL import *
-from ltr_db_optimizer.model.model_structures.comparison_model import LTRComparisonNet as LTRComparisonNet_comp
+from ltr_db_optimizer.model.model_structures.self_proposals import *
 from datetime import datetime
 
 class DPccp:
@@ -23,30 +22,27 @@ class DPccp:
 
 
         if model:
-            if not comparison:
-                model_archi_name = model.split("MODEL_")[1].split("_")[0]
+            model_archi_name = model.split("MODEL_")[1].split("_")[0]
 
-                if model_archi_name == "HM":
-                    # self.model = LTRComparisonNet(10, 6).to(self.device)
-                    self.model = LTRComparisonNet(10, 6)
+            if model_archi_name == "HM":
+                # self.model = LTRComparisonNet(10, 6).to(self.device)
+                self.model = LTRComparisonNet(10, 6)
 
-                    print('load LTRComparisonNet HM!!!')
-                elif model_archi_name == "lero":
-                    if self.table_info.database == "imdb":
-                        self.model = LeroNet(input_feature_dim=31)  # stats/tpch: 18; imdb:31
-                    elif self.table_info.database in ["stats", "tpch"]:
-                        self.model = LeroNet(input_feature_dim=18)  # stats/tpch: 18; imdb:31
+                print('load LTRComparisonNet HM!!!')
+            elif model_archi_name == "lero":
+                if self.table_info.database == "imdb":
+                    self.model = LeroNet(input_feature_dim=31)  # stats/tpch: 18; imdb:31
+                elif self.table_info.database in ["stats", "tpch"]:
+                    self.model = LeroNet(input_feature_dim=18)  # stats/tpch: 18; imdb:31
 
-                    print('load LeroNet !!!')
+                print('load LeroNet !!!')
 
-                else:
-                    self.model = eval(model_archi_name)(10, 6)
-                    print(f'load model:{model_archi_name}!!!')
-                # self.model.load_state_dict(torch.load(model), strict=False)
-                self.model.load_state_dict(torch.load(model))
             else:
-                self.model = LTRComparisonNet_comp(10,6)
-                self.model.load_state_dict(torch.load(model))                
+                self.model = eval(model_archi_name)(10, 6)
+                print(f'load model:{model_archi_name}!!!')
+            # self.model.load_state_dict(torch.load(model), strict=False)
+            self.model.load_state_dict(torch.load(model))
+
         else:
             self.model = None
         self.graph = graph

@@ -8,8 +8,7 @@ import ltr_db_optimizer.enumeration_algorithm.utils as utils
 import ltr_db_optimizer.enumeration_algorithm.enumeration_node as nodes
 from ltr_db_optimizer.model.model_structures.comparison_net2 import LTRComparisonNet
 
-from ltr_db_optimizer.model.model_structures.proposals_by_XL import *
-from ltr_db_optimizer.model.model_structures.comparison_model import LTRComparisonNet as LTRComparisonNet_comp
+from ltr_db_optimizer.model.model_structures.self_proposals import *
 
 from ltr_db_optimizer.parser.xml_parser import XMLParser
 from ltr_db_optimizer.parser.SQLParser import to_sql
@@ -24,21 +23,18 @@ class DPccp:
     
     def __init__(self, model = None, graph = None, joiner = None, top_k = 1, comparison = False, job_name=None, nr_workload=None):
         if model:
-            if not comparison:
-                model_archi_name = model.split("MODEL_")[1].split("_")[0]
+            model_archi_name = model.split("MODEL_")[1].split("_")[0]
 
-                if model_archi_name == "HM":
-                    self.model = LTRComparisonNet(10, 6)
-                    print('load LTRComparisonNet HM!!!')
+            if model_archi_name == "HM":
+                self.model = LTRComparisonNet(10, 6)
+                print('load LTRComparisonNet HM!!!')
 
-                else:
-                    self.model = eval(model_archi_name)(10, 6)
-                    print(f'load model:{model_archi_name}!!!')
-                # self.model.load_state_dict(torch.load(model), strict=False)
-                self.model.load_state_dict(torch.load(model))
             else:
-                self.model = LTRComparisonNet_comp(10,6)
-                self.model.load_state_dict(torch.load(model))                
+                self.model = eval(model_archi_name)(10, 6)
+                print(f'load model:{model_archi_name}!!!')
+            # self.model.load_state_dict(torch.load(model), strict=False)
+            self.model.load_state_dict(torch.load(model))
+
         else:
             self.model = None
         self.graph = graph
